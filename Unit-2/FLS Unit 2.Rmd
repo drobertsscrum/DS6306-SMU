@@ -1,0 +1,291 @@
+---
+title: "FLS Unit 2"
+output: html_document
+---
+## Locate files
+```{r locate-file}
+getwd()
+list.files()
+list.files("data")
+list.files(recursive = TRUE)
+```
+## Setup libraries and data
+
+```{r setup}
+# Install the ggplot2 library in the console versus RStudio
+library(ggplot2)
+library(dplyr)
+
+players <- read.csv("PlayersBBall.csv", header = TRUE, stringsAsFactors = FALSE)
+head(players,10)
+```
+## Create a visual representation that summarizes the number of players in each position
+```{r}
+table(players$position)
+
+players <- players %>%
+  dplyr::mutate(position = trimws(as.character(position)),
+                position = dplyr::na_if(position, "")) %>%
+  dplyr::filter(!is.na(position))
+
+
+table(players$position, useNA = "ifany")
+players %>% dplyr::filter(trimws(as.character(position)) == "1") %>% dplyr::select(name, year_start, year_end, position)
+
+players %>%
+  ggplot(aes(x = position)) +
+  geom_bar(fill = "blue", color = "black") +
+  geom_text(
+    stat = "count",
+    aes(label = after_stat(count)),
+    vjust = -0.3
+  ) +
+  labs(
+    title = "Number of Basketball Players by Position",
+    x = "Position",
+    y = "Number of Players"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+## Evaluate the weight and height of the various positions
+
+```{r}
+# Weight of Centers vs Forwards using boxplots
+
+library(dplyr)
+library(ggplot2)
+
+cf <- players %>%
+  filter(position %in% c("C", "F")) %>%
+  mutate(weight = as.numeric(weight)) %>%
+  filter(!is.na(weight))
+
+ggplot(cf, aes(x = position, y = weight)) +
+  geom_boxplot() +
+  labs(
+    title = "Distribution of Player Weight by Position",
+    x = "Position",
+    y = "Weight (lbs)"
+  ) +
+  theme_minimal()
+
+library(stringr)
+
+players <- players %>%
+  mutate(
+    height = as.character(height),
+    feet = as.numeric(str_extract(height, "^[0-9]+")),
+    inches = as.numeric(str_extract(height, "(?<=-)[0-9]+")),
+    height_inches = feet * 12 + inches
+  )
+
+cf_height <- players %>%
+  filter(position %in% c("C", "F")) %>%
+  filter(!is.na(height_inches))
+
+ggplot(cf_height, aes(x = position, y = height_inches)) +
+  geom_boxplot() +
+  labs(
+    title = "Distribution of Player Height by Position",
+    x = "Position",
+    y = "Height (inches)"
+  ) +
+  theme_minimal()
+```
+## Use the dataframe players to evaluate additional positions
+```{r}
+
+players %>%
+  filter(!is.na(height_inches)) %>%
+  ggplot(aes(x = position, y = height_inches)) +
+  geom_boxplot() +
+  facet_wrap(~ position, scales = "free_x") +
+  labs(
+    title = "Distribution of Player Height by Position",
+    x = "Position",
+    y = "Height (inches)"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank()
+  )
+
+```
+## Use the dataframe players and additional mapping capabilities to evaluate weight and height among players
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Prepare data
+height_weight1 <- players %>%
+  mutate(
+    weight = as.numeric(weight),
+    height_inches = as.numeric(height_inches)
+  ) %>%
+  filter(!is.na(height_inches), !is.na(weight))
+
+# Scatterplot with jitter and smooth trend line
+ggplot(height_weight1, aes(x = weight, y = height_inches)) +
+  geom_jitter(width = 0, height = 0.3, alpha = 0.35) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(
+    title = "Relationship Between Player Weight and Height",
+    x = "Weight (lbs)",
+    y = "Height (inches)"
+  ) +
+  theme_minimal()
+
+```
+## Use the dataframe players and additional mapping capabilities to evaluate weight and height across positions
+```{r}
+library(tidyr)
+
+height_weight2 <- players %>%
+  mutate(
+    weight = as.numeric(weight),
+    height_inches = as.numeric(height_inches)  
+  ) %>%
+  filter(!is.na(height_inches), !is.na(weight)) %>%
+  filter(position != "")
+
+ggplot(height_weight2, aes(x = height_inches, y = weight)) +
+  geom_jitter(width = 0.3, height = 0, alpha = 0.35) +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~ position) +
+  labs(
+    title = "Height vs Weight by Position",
+    x = "Height (inches)",
+    y = "Weight (lbs)"
+  ) +
+  theme_minimal()
+
+```
+## Examine the claims of a historian
+```{r}
+library(dplyr)
+library(ggplot2)
+
+players <- players %>%
+  mutate(
+    decade = floor(year_start / 10) * 10
+  )
+
+ggplot(players, aes(x = year_start, y = height_inches, color = factor(decade))) +
+  geom_point(alpha = 0.35) +
+  geom_smooth(se = FALSE, color = "black") +
+  labs(
+    title = "Player Height Over Time, Colored by Decade",
+    x = "Year",
+    y = "Height (inches)",
+    color = "Decade"
+  ) +
+  theme_minimal()
+
+```
+## Create a 3D plot
+```{r}
+library(dplyr)
+
+height_weight_3d <- players %>%
+  mutate(
+    year_start = as.numeric(year_start),
+    weight = as.numeric(weight),
+    height_inches = as.numeric(height_inches),
+    position = as.factor(position)
+  ) %>%
+  filter(!is.na(year_start), !is.na(weight), !is.na(height_inches)) %>%
+  filter(position != "")
+
+library(plotly)
+
+plot_ly(
+  data = height_weight_3d,
+  x = ~year_start,
+  y = ~weight,
+  z = ~height_inches,
+  color = ~position,
+  type = "scatter3d",
+  mode = "markers",
+  marker = list(size = 3, opacity = 0.6)
+) %>%
+  layout(
+    title = "3D Scatter: Year vs Weight vs Height (Colored by Position)",
+    scene = list(
+      xaxis = list(title = "Year"),
+      yaxis = list(title = "Weight (lbs)"),
+      zaxis = list(title = "Height (inches)")
+    )
+  )
+```
+## Chosing the violin plot + jitter to provide additional insight on height and weight
+```{r}
+library(ggplot2)
+library(dplyr)
+
+players %>%
+  filter(position != "", !is.na(height_inches)) %>%
+  ggplot(aes(x = position, y = height_inches, fill = position)) +
+  geom_violin(alpha = 0.6, trim = FALSE) +
+  geom_jitter(width = 0.15, alpha = 0.25, size = 0.7) +
+  labs(
+    title = "Height Distribution by Position (Violin + Points)",
+    x = "Position",
+    y = "Height (inches)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+```
+## Create a visualization for the dataset EducationIncome
+```{r}
+library(ggplot2)
+library(dplyr)
+
+getwd()
+list.files()
+
+EducationIncome <- read.csv("Education_Income.csv", header = TRUE, stringsAsFactors = FALSE)
+head(EducationIncome,10)
+
+# Create a categorical ordering of the data since there are 3 different types of text values
+
+EducationIncome <- EducationIncome %>%
+  mutate(
+    Educ_clean = case_when(
+      Educ == "12" ~ "12",
+      Educ == "13-15" ~ "13–15",
+      Educ == "16" ~ "16",
+      Educ == ">16" ~ ">16",
+      TRUE ~ NA_character_
+    ),
+    Educ_clean = factor(
+      Educ_clean,
+      levels = c("12", "13–15", "16", ">16"),
+      ordered = TRUE
+    )
+  )
+EducationIncome %>%
+  group_by(Educ_clean) %>%
+  summarise(
+    n = n(),
+    mean_income = mean(Income2005, na.rm = TRUE),
+    median_income = median(Income2005, na.rm = TRUE)
+  )
+library(ggplot2)
+library(scales)
+
+ggplot(EducationIncome, aes(x = Educ_clean, y = Income2005)) +
+  geom_boxplot() +
+  scale_y_continuous(labels = dollar_format()) +
+  labs(
+    title = "Income Distribution by Education Level",
+    x = "Education Level",
+    y = "Income (2005)"
+  ) +
+  theme_minimal()
+
+
+
+```
